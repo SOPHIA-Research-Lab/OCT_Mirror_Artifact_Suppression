@@ -49,10 +49,9 @@ This page lists the seeds, data splits and evaluation protocol used by the code.
 2. For each volume, the artifact is simulated on the full volume and up to 40 evenly spaced B-scans are kept (all if 40 or fewer).
 3. For each configuration M2-M8, `weight/G_best.pth` is loaded (the only checkpoint evaluated).
 4. Each corrupted B-scan is normalized with its own limits and passed through the generator. The prediction and the clean B-scan are both de-normalized with the **clean target's** log-amplitude limits. This uses information from the target and is only possible with simulated artifacts; `infer.py --scale-from input` is the alternative for real corrupted data.
-5. Intensity metrics: amplitude in dB (`20*log10|.|`), min-max normalized with the target's range, clipped to [0, 1], despeckled with non-local means (`h = 0.1`, `patch_size = 5`, `patch_distance = 6`, `fast_mode = True`); then SSIM, PSNR, MSE and histogram cosine similarity.
-6. Phase metrics on the raw complex fields, without despeckling: WPC, CCC (pixels above the 50th amplitude percentile of the target, after removing the global phase piston) and PG-SSIM (mean of axial and lateral SSIM of the wrapped phase gradients inside the same mask).
-7. Summary: mean, standard deviation and 95% bootstrap CI (2000 resamples, seed 42) per metric and configuration.
-8. Paired Wilcoxon signed-rank tests of each configuration against M3, pairing B-scans by `(tomogram_file, bscan_index)`. Holm-Bonferroni correction across all 42 tests (7 metrics x 6 comparisons) as one family.
+5. Phase metrics on the raw complex fields, without despeckling: WPC, CCC (pixels above the 50th amplitude percentile of the target, after removing the global phase piston) and PG-SSIM (mean of axial and lateral SSIM of the wrapped phase gradients inside the same mask).
+6. Summary: mean, standard deviation and 95% bootstrap CI (2000 resamples, seed 42) per metric and configuration.
+7. Paired Wilcoxon signed-rank tests of each configuration against M3, pairing B-scans by `(tomogram_file, bscan_index)`. Holm-Bonferroni correction across all 42 tests (7 metrics x 6 comparisons) as one family.
 
 Outputs in `--out-dir`: `per_bscan_metrics.csv`, `summary_metrics.csv`, `wilcoxon_tests.csv`, `evaluation_errors.log`, `plots/training_curves_unified/` and `plots/metric_boxplots/`.
 
@@ -61,9 +60,8 @@ Outputs in `--out-dir`: `per_bscan_metrics.csv`, `summary_metrics.csv`, `wilcoxo
 1. Validation volumes: every `.npy` in `VALIDATION_DATA_DIR`, sorted by file name, up to 40 evenly spaced B-scans per volume.
 2. Each B-scan is split into non-overlapping ROIs of `--roi` pixels (512 = the full B-scan) and the artifact is simulated on each ROI.
 3. For each run, the `best` and `final` EMA checkpoints are sampled with fixed seeds. All predictions are physical complex fields; no ground-truth statistics are used to de-normalize them.
-4. Intensity metrics as in the PC-CGAN protocol, for a sweep of NLM strengths (`h` from 0.10 to 0, unfiltered); phase metrics (WPC, CCC, PG-SSIM) on the raw fields. Additional metrics: mirror suppression on the mirror-dominated region, consistency with the measurement, CCC against the mirror solution, and CCC on tissue-dominant and ambiguous pixels.
-5. Baselines computed on the same ROIs: no-op input, Hilbert half-space, DEFR (on a dispersion-encoded input) and two oracles that use the ground truth (flagged in the output).
-6. Summary with 95 % bootstrap CIs resampling volumes, and paired Wilcoxon tests of every method against the no-op input with Holm-Bonferroni correction.
+4. Baselines computed on the same ROIs: no-op input, Hilbert half-space, DEFR (on a dispersion-encoded input) and two oracles that use the ground truth (flagged in the output).
+5. Summary with 95 % bootstrap CIs resampling volumes, and paired Wilcoxon tests of every method against the no-op input with Holm-Bonferroni correction.
 
 **Statistical unit.** Tests and confidence intervals treat B-scans as samples. Several B-scans come from the same volume, so they are not independent, and the statistics do not support subject-level conclusions.
 
@@ -73,7 +71,6 @@ The tests in `tests/` compare the refactored code against the original scripts i
 
 - preprocessing, datasets, architectures, losses and metrics: identical outputs;
 - one PC-CGAN training epoch (`train_fn`): identical losses and weights;
-- the full PC-CGAN evaluation: identical `per_bscan_metrics.csv` (except the corrected `despeckle_filter` label), `summary_metrics.csv` and `wilcoxon_tests.csv`.
 
 Run them with `pytest`. The diffusion scripts in `legacy/` are not covered by golden tests; `python legacy/diffComplexD.py --stage selftest` checks the forward model, the exact data-consistency constructions and the input/output representations.
 

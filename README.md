@@ -143,7 +143,7 @@ python scripts/evaluate_pccgan.py \
 
 `--ablation-root` must contain one folder per configuration (`M2_ComplexCGAN_NoPhase`, `M3_PCCGAN_Reference`, …), each with `weight/G_best.pth` and `metrics_epoch.csv`.
 
-**Protocol.** Each validation volume contributes up to 40 evenly spaced B-scans. Intensity metrics (SSIM, PSNR, MSE, histogram cosine similarity) are computed on despeckled, normalized amplitude in dB using non-local means with `h = 0.1`. Phase metrics (WPC, CCC, PG-SSIM) use the raw complex field without filtering. Reported values are means with 95% bootstrap confidence intervals (2000 resamples, seed 42). Paired Wilcoxon tests compare every configuration against M3, with Holm-Bonferroni correction across all 42 tests as one family.
+**Protocol.** Each validation volume contributes up to 40 evenly spaced B-scans. Reported values are means with 95% bootstrap confidence intervals (2000 resamples, seed 42). Paired Wilcoxon tests compare every configuration against M3, with Holm-Bonferroni correction across all 42 tests as one family.
 
 **Comparability.** Statistics are paired across B-scans and describe B-scan-level differences. They do not establish subject-level independence, because several B-scans come from the same volume. The training/validation split inside the training script is also done per B-scan. The independent validation set used for the reported results is separate from the training data.
 
