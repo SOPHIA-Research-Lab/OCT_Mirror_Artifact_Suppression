@@ -1,8 +1,6 @@
 import math
-
 import pytest
 import torch
-
 from legacy_loader import load_legacy
 from octmirror.losses import hinge_d_loss, hinge_g_loss, phase_circular_loss, phase_gradient_loss
 
