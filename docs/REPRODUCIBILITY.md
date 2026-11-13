@@ -5,8 +5,10 @@ This page lists the seeds, data splits and evaluation protocol used by the code.
 ## Environment
 
 - Python >= 3.9, PyTorch >= 2.3, Matplotlib >= 3.9. Install with `pip install -e .` and `pip install -r requirements.txt`.
-- The paper's models were trained on CUDA GPUs. The diffusion model used mixed precision (AMP) and, with several GPUs, `nn.DataParallel`.
-- `set_seed` sets `torch.backends.cudnn.deterministic = True` and `benchmark = False`, but does not call `torch.use_deterministic_algorithms(True)`. With AMP, `DataParallel` and fused attention kernels, GPU runs are not bitwise reproducible, and results may also vary across PyTorch versions and hardware.
+- The paper's models were trained on CUDA GPUs. The diffusion models used bfloat16 autocast.
+- PC-CGAN: `set_seed` sets `torch.backends.cudnn.deterministic = True` and `benchmark = False`, but does not call `torch.use_deterministic_algorithms(True)`.
+- Diffusion (`legacy/diffComplexD.py`): `set_seed` enables `cudnn.benchmark` and TF32 unless `--deterministic` is given.
+- With mixed precision and fused attention kernels, GPU runs are not bitwise reproducible, and results may also vary across PyTorch versions and hardware.
 
 ## Seeds
 
@@ -14,9 +16,10 @@ This page lists the seeds, data splits and evaluation protocol used by the code.
 |---|---|---|
 | PC-CGAN `seed` (YAML) | 0 | Python, NumPy and PyTorch RNGs, set right before building the generator and discriminator: network initialization, DataLoader shuffling, dropout. Same as the original script, which reseeded before each configuration. |
 | PC-CGAN `split_seed` (YAML) | 0 | Permutation of the 90/10 train/validation split. The original script shuffled before seeding, so the original split is not reproducible. `null` restores the unseeded behaviour. |
-| Diffusion `seed` (YAML) | 0 | Set at the start of `train_diffusion`: network initialization, DataLoader shuffling, time steps and noise. |
-| Diffusion sampling `--seed` (`infer.py`) | 0 by default | `torch.manual_seed` before the initial noise of every B-scan (the same seed is reused for each B-scan). |
-| Bootstrap confidence intervals | 2000 resamples, seed 42 | `octmirror.stats.bootstrap_ci`. |
+| Diffusion training `--seed` (`diffComplexD.py`) | 0 | Python, NumPy and PyTorch RNGs at the start of training: network initialization, crops, augmentation, time steps and noise. |
+| Diffusion internal validation and previews | 1234 | Sampling seed of the internal validation (checkpoint selection) and of the preview figures. |
+| Diffusion evaluation (`SAMPLE_SEED`) | 0 | Base seed of the sampling generators in `evaluate_diffusion_D.py`; the same seeds are used for every variant, so comparisons are paired. |
+| Bootstrap confidence intervals | 2000 resamples, seed 42 | PC-CGAN: `octmirror.stats.bootstrap_ci`. Diffusion: `bootstrap_ci_by_volume` (resamples per-volume means). |
 
 ## Data and splits
 
@@ -26,16 +29,18 @@ This page lists the seeds, data splits and evaluation protocol used by the code.
 
 ### PC-CGAN
 
-- Training data: the 9 files listed in `configs/pccgan/*.yaml`, from the folder `phase/` under `--data-root`.
+- Training data: the files listed in `configs/pccgan/*.yaml`, from the folder `phase/` under `--data-root`.
 - The artifact is simulated on each full volume; all B-scans are used (512 x 512).
 - B-scans of all volumes are pooled and split at random **per B-scan** (not per volume) into 90% training and 10% internal validation. Neighbouring B-scans of one volume can fall on both sides. The internal validation set is only used to select `G_best.pth` and to drive the learning-rate scheduler.
 - Volumes are read in `os.listdir` order, which can differ between machines and changes the split even with a fixed `split_seed`.
 
-### Diffusion
+### Diffusion (`legacy/diffComplexD.py`)
 
-- Training data: every `.npy` file in `noPhase/`, `phase/` and `synthetic/` under `--data-root`.
-- Up to 40 evenly spaced B-scans per volume (`np.linspace`; all B-scans if a volume has 40 or fewer).
-- The central 256 x 256 ROI is cropped at native resolution (no interpolation) and the artifact is simulated on the ROI.
+- Training data: the files in `TRAIN_FILES`, from the folder given by `--data`. The `bscan` family (reported model) uses full 512 x 512 B-scans and skips volumes with another B-scan size.
+- Internal validation: from each training volume, the last contiguous block of B-scans (5 %, at least 4) is held out, after a guard band of 16 B-scans that is not used at all. The test set never takes part in training or checkpoint selection.
+- The artifact is simulated on the GPU for every batch, after augmentation (global phase rotation, lateral flip and, in the `bscan` family, a circular zero-delay shift).
+- Checkpoint selection (`ema_best.pth`): among the internal evaluations with median mirror suppression >= 0.5, the one with the highest CCC; otherwise the one with the highest suppression. `ema_final.pth` keeps the last epoch.
+- `roi` family: square ROIs of `--roi` pixels, 512 by default (the full B-scan). Smaller values (e.g. 256) are supported for quick experiments or GPUs with limited VRAM; evaluate with the same `--roi`.
 
 
 ## PC-CGAN evaluation protocol (`scripts/evaluate_pccgan.py`)
@@ -51,6 +56,15 @@ This page lists the seeds, data splits and evaluation protocol used by the code.
 
 Outputs in `--out-dir`: `per_bscan_metrics.csv`, `summary_metrics.csv`, `wilcoxon_tests.csv`, `evaluation_errors.log`, `plots/training_curves_unified/` and `plots/metric_boxplots/`.
 
+## Diffusion evaluation protocol (`legacy/evaluate_diffusion_D.py`)
+
+1. Validation volumes: every `.npy` in `VALIDATION_DATA_DIR`, sorted by file name, up to 40 evenly spaced B-scans per volume.
+2. Each B-scan is split into non-overlapping ROIs of `--roi` pixels (512 = the full B-scan) and the artifact is simulated on each ROI.
+3. For each run, the `best` and `final` EMA checkpoints are sampled with fixed seeds. All predictions are physical complex fields; no ground-truth statistics are used to de-normalize them.
+4. Intensity metrics as in the PC-CGAN protocol, for a sweep of NLM strengths (`h` from 0.10 to 0, unfiltered); phase metrics (WPC, CCC, PG-SSIM) on the raw fields. Additional metrics: mirror suppression on the mirror-dominated region, consistency with the measurement, CCC against the mirror solution, and CCC on tissue-dominant and ambiguous pixels.
+5. Baselines computed on the same ROIs: no-op input, Hilbert half-space, DEFR (on a dispersion-encoded input) and two oracles that use the ground truth (flagged in the output).
+6. Summary with 95 % bootstrap CIs resampling volumes, and paired Wilcoxon tests of every method against the no-op input with Holm-Bonferroni correction.
+
 **Statistical unit.** Tests and confidence intervals treat B-scans as samples. Several B-scans come from the same volume, so they are not independent, and the statistics do not support subject-level conclusions.
 
 ## What reproduces exactly
@@ -59,11 +73,9 @@ The tests in `tests/` compare the refactored code against the original scripts i
 
 - preprocessing, datasets, architectures, losses and metrics: identical outputs;
 - one PC-CGAN training epoch (`train_fn`): identical losses and weights;
-- one diffusion training epoch (`train_diffusion` vs. the original `train`): identical checkpoint and EMA;
-- the DDPM sampler: identical samples for the same RNG state;
 - the full PC-CGAN evaluation: identical `per_bscan_metrics.csv` (except the corrected `despeckle_filter` label), `summary_metrics.csv` and `wilcoxon_tests.csv`.
 
-Run them with `pytest`.
+Run them with `pytest`. The diffusion scripts in `legacy/` are not covered by golden tests; `python legacy/diffComplexD.py --stage selftest` checks the forward model, the exact data-consistency constructions and the input/output representations.
 
 ## What does not reproduce exactly
 

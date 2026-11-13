@@ -9,7 +9,3 @@ def inverseLogScale(oldslices, slicesMax, slicesMin):
     """PC-CGAN variant (no clipping)."""
     return inverse_log_scale(oldslices, slicesMax, slicesMin, max_log_amp=None)
 
-
-def inverseLogScaleClipped(oldslices, slicesMax, slicesMin):
-    """Diffusion variant (complex_field_utils.py, clip at 30.0)."""
-    return inverse_log_scale(oldslices, slicesMax, slicesMin, max_log_amp=30.0)

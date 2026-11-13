@@ -1,6 +1,6 @@
-"""PyTorch datasets of paired (mirror-corrupted, clean) complex B-scans.
+"""PyTorch dataset of paired (mirror-corrupted, clean) complex B-scans for the PC-CGAN.
 
-Both datasets store pre-normalized arrays (H, W, 2) and return float32 tensors (2, H, W)
+The dataset stores pre-normalized arrays (H, W, 2) and returns float32 tensors (2, H, W)
 with channels (real, imag).
 """
 from __future__ import annotations
@@ -15,11 +15,9 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from octmirror.preprocessing import (
-    extract_center_roi,
     load_tomogram,
     log_scale,
     mirror_artifact,
-    select_bscan_indices,
 )
 
 
@@ -46,27 +44,6 @@ class PairedComplexDatasetWithScale(Dataset):
         output_tensor = torch.tensor(output_array.transpose(2, 0, 1), dtype=torch.float32)
 
         return input_tensor, output_tensor, max_val, min_val
-
-    def __len__(self) -> int:
-        return len(self.data)
-
-
-class PairedComplexDataset(Dataset):
-    """Diffusion dataset: (input, target) pairs of normalized complex ROIs.
-
-    Args:
-        data: List of tuples (input, target), each array (H, W, 2).
-    """
-
-    def __init__(self, data: List[Tuple[np.ndarray, np.ndarray]]):
-        self.data = data
-
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        input_array, output_array = self.data[idx]
-        # Channels (real, imag) already exist in the last axis; move to (2, H, W)
-        input_tensor = torch.tensor(input_array.transpose(2, 0, 1), dtype=torch.float32)
-        output_tensor = torch.tensor(output_array.transpose(2, 0, 1), dtype=torch.float32)
-        return input_tensor, output_tensor
 
     def __len__(self) -> int:
         return len(self.data)
@@ -159,51 +136,3 @@ def build_pccgan_datasets(
 
     return (PairedComplexDatasetWithScale(train_data, train_max_min),
             PairedComplexDatasetWithScale(val_data, val_max_min))
-
-
-def build_diffusion_dataset(
-    data_root: str,
-    folders: Sequence[str],
-    roi_size: int = 256,
-    n_bscans_per_volume: int = 40,
-) -> PairedComplexDataset:
-    """Build the diffusion training dataset as in the original training script.
-
-    Every ``.npy`` file in every folder is used. For each volume, up to
-    ``n_bscans_per_volume`` evenly spaced B-scans are taken; the central
-    ``roi_size`` x ``roi_size`` ROI is cropped at native resolution, the mirror
-    artifact is simulated on the ROI itself (axis 0 == Z), and input and target are
-    log-scaled independently.
-
-    Args:
-        data_root: Root directory containing ``folders``.
-        folders: Sub-folders to scan.
-        roi_size: Side of the central ROI.
-        n_bscans_per_volume: Maximum number of B-scans per volume.
-
-    Returns:
-        The training dataset (there is no validation split for diffusion).
-    """
-    n_volumes = 0
-    n_rois = 0
-    pairs = []
-    for folder in tqdm(folders):
-        folder_files = os.listdir(os.path.join(data_root, folder))
-        for file in folder_files:
-            if not file.endswith('.npy'):
-                continue
-            tom = load_tomogram(os.path.join(data_root, folder, file), verbose=False)  # (Z, X, Y)
-            n_volumes += 1
-            y_indices = select_bscan_indices(tom.shape[2], n_bscans_per_volume)
-            for y_idx in y_indices:
-                bscan_complex = tom[:, :, y_idx]  # (Z, X), native resolution
-                target_roi = extract_center_roi(bscan_complex, roi_size=roi_size)
-                # Mirror artifact applied directly on the complex ROI, axis 0 == Z
-                input_roi = mirror_artifact(target_roi)
-                target_norm, _, _, _, _ = log_scale(target_roi[np.newaxis, ...])
-                input_norm, _, _, _, _ = log_scale(input_roi[np.newaxis, ...])
-                pairs.append((input_norm[0], target_norm[0]))
-                n_rois += 1
-    print(f'Total volumes loaded: {n_volumes}')
-    print(f'Total B-scans/ROIs: {n_rois}')
-    return PairedComplexDataset(pairs)

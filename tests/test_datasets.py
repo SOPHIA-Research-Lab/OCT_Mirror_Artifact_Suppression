@@ -6,9 +6,7 @@ import torch
 
 from legacy_loader import load_legacy
 from octmirror.datasets import (
-    PairedComplexDataset,
     PairedComplexDatasetWithScale,
-    build_diffusion_dataset,
     build_pccgan_datasets,
 )
 
@@ -35,7 +33,7 @@ def test_seeded_split_equals_global_seed_shuffle():
 
 
 def test_pccgan_dataset_matches_legacy_dataset():
-    legacy = load_legacy("torchPix2Pix_AblationM2_M8.py", ["ArrayDataset"])
+    legacy = load_legacy("torchPCCGAN_AblationM2_M8.py", ["ArrayDataset"])
     rng = np.random.default_rng(0)
     data = [(rng.uniform(size=(8, 6, 2)), rng.uniform(size=(8, 6, 2))) for _ in range(3)]
     max_min = [(rng.uniform(size=(1, 1)), rng.uniform(size=(1, 1))) for _ in range(3)]
@@ -51,18 +49,8 @@ def test_pccgan_dataset_matches_legacy_dataset():
                 np.testing.assert_array_equal(a, b)
 
 
-def test_diffusion_dataset_matches_legacy_dataset():
-    legacy = load_legacy("diffComplexField_ROI256_D1_D4.py", ["ArrayDataset"])
-    rng = np.random.default_rng(1)
-    data = [(rng.uniform(size=(8, 8, 2)), rng.uniform(size=(8, 8, 2))) for _ in range(3)]
-    new, old = PairedComplexDataset(data), legacy.ArrayDataset(data)
-    for i in range(3):
-        for a, b in zip(new[i], old[i]):
-            assert torch.equal(a, b)
-
-
 def test_build_pccgan_datasets_reproduces_legacy_pipeline(tmp_path):
-    legacy = load_legacy("torchPix2Pix_AblationM2_M8.py", ["mirrorArtifact", "logScale"])
+    legacy = load_legacy("torchPCCGAN_AblationM2_M8.py", ["mirrorArtifact", "logScale"])
     root = str(tmp_path)
     vols = _write_volumes(root, "phase", ["A.npy", "B.npy", "C.npy"], (32, 32, 6))
     files = ["A.npy", "B.npy"]
@@ -92,29 +80,3 @@ def test_build_pccgan_datasets_reproduces_legacy_pipeline(tmp_path):
             np.testing.assert_array_equal(ds.data[k][1], pairs[i][1])
             np.testing.assert_array_equal(ds.max_min[k][0], max_min[i][0])
             np.testing.assert_array_equal(ds.max_min[k][1], max_min[i][1])
-
-
-def test_build_diffusion_dataset_reproduces_legacy_pipeline(tmp_path):
-    legacy = load_legacy(
-        "diffComplexField_ROI256_D1_D4.py", ["extract_center_roi", "mirrorArtifact", "logScale"]
-    )
-    root = str(tmp_path)
-    vols = _write_volumes(root, "phase", ["A.npy", "B.npy"], (40, 36, 50))
-    vols.update(_write_volumes(root, "synthetic", ["S.npy"], (40, 36, 5), seed=1))
-    ds = build_diffusion_dataset(root, ["phase", "synthetic"], roi_size=32, n_bscans_per_volume=40)
-
-    expected = []
-    for folder in ["phase", "synthetic"]:
-        for file in os.listdir(os.path.join(root, folder)):
-            tom = vols[file]
-            n_y = tom.shape[2]
-            y_indices = np.linspace(0, n_y - 1, 40).astype(int) if n_y > 40 else np.arange(n_y)
-            for y in y_indices:
-                target = legacy.extract_center_roi(tom[:, :, y], roi_size=32)
-                inp = legacy.mirrorArtifact(target)
-                expected.append((legacy.logScale(inp[np.newaxis])[0][0],
-                                 legacy.logScale(target[np.newaxis])[0][0]))
-    assert len(ds) == len(expected) == 2 * 40 + 5
-    for (a_in, a_t), (b_in, b_t) in zip(ds.data, expected):
-        np.testing.assert_array_equal(a_in, b_in)
-        np.testing.assert_array_equal(a_t, b_t)

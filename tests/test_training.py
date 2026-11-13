@@ -1,6 +1,4 @@
 import copy
-import csv
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -9,12 +7,10 @@ import torch
 from torch.utils.data import DataLoader
 
 from legacy_loader import load_legacy
-from octmirror.datasets import PairedComplexDataset, PairedComplexDatasetWithScale
+from octmirror.datasets import PairedComplexDatasetWithScale
 from octmirror.models.pccgan import PatchGANDiscriminator, UNetGenerator
 from octmirror.training import (
-    DIFFUSION_CSV_HEADER,
     set_seed,
-    train_diffusion,
     train_fn,
     train_loop,
     update_ema,
@@ -22,7 +18,6 @@ from octmirror.training import (
 )
 
 GAN = "torchPCCGAN_AblationM2_M8.py"
-DIFF = "diffComplexField_ROI256_D1_D4.py"
 
 
 def _gan_dataset(n=4, size=128, seed=0):
@@ -111,42 +106,3 @@ def test_train_loop_smoke(tmp_path):
     assert not (w / "G_ema_best.pth").exists()
     assert (tmp_path / "training_curves.png").exists()
     assert (tmp_path / "generated" / "epoch_1.png").exists()
-
-
-def test_train_diffusion_matches_legacy(tmp_path, monkeypatch):
-    legacy = load_legacy(DIFF, ["train", "UNET", "UnetLayer", "ResBlock", "Attention",
-                                "SinusoidalEmbeddings", "DDPM_Scheduler", "set_seed"])
-    g = legacy.train.__globals__
-    real_loader, real_sched = g["DataLoader"], g["DDPM_Scheduler"]
-    g["DataLoader"] = lambda *a, **k: real_loader(*a, **{**k, "num_workers": 0})
-    g["DDPM_Scheduler"] = lambda num_time_steps=1000: real_sched(num_time_steps=num_time_steps, device="cpu")
-    monkeypatch.setattr(torch.Tensor, "cuda", lambda self, *a, **k: self)
-
-    rng = np.random.default_rng(0)
-    ds = PairedComplexDataset([(rng.uniform(size=(32, 32, 2)), rng.uniform(size=(32, 32, 2)))
-                               for _ in range(3)])
-    kw = dict(batch_size=2, num_time_steps=1000, num_epochs=1, seed=0, lr=2e-5,
-              use_phase_loss=True, lambda_phase_diff=20.0, experiment_id=2, roi_size=32)
-    old_dir, new_dir = tmp_path / "old", tmp_path / "new"
-    old_dir.mkdir()
-    new_dir.mkdir()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", FutureWarning)
-        legacy.train(ds, savePath=str(old_dir), trainSize=32, interpolate=False, **kw)
-    train_diffusion(ds, savePath=str(new_dir), device="cpu", num_workers=0, **kw)
-
-    old = torch.load(old_dir / "checkpoint.pth", weights_only=False)
-    new = torch.load(new_dir / "checkpoint.pth", weights_only=False)
-    assert set(new) == {"weights", "optimizer", "ema"}
-    for part in ("weights", "ema"):
-        assert old[part].keys() == new[part].keys()
-        for k in old[part]:
-            assert torch.equal(old[part][k], new[part][k]), (part, k)
-
-    with open(new_dir / "training_metrics.csv") as f:
-        rows_new = list(csv.reader(f))
-    with open(old_dir / "training_metrics.csv") as f:
-        rows_old = list(csv.reader(f))
-    assert rows_new[0] == rows_old[0] == DIFFUSION_CSV_HEADER
-    deterministic = [0, 1, 2, 3, 7, 8, 9, 10]  # every column except timing / memory
-    assert [rows_new[1][i] for i in deterministic] == [rows_old[1][i] for i in deterministic]

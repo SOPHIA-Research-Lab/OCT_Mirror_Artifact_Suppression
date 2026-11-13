@@ -9,4 +9,7 @@ tqdm
 einops
 timm
 pyyaml
+# diffusion scripts in legacy/
+diffusers
+segmentation-models-pytorch
 pytest

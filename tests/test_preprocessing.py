@@ -6,7 +6,6 @@ import pytest
 import aliases
 from legacy_loader import load_legacy
 from octmirror.preprocessing import (
-    extract_center_roi,
     inverse_log_scale,
     load_tomogram,
     log_scale,
@@ -14,7 +13,6 @@ from octmirror.preprocessing import (
 )
 
 LEGACY_SOURCES = [
-    "complex_field_utils.py",
     "torchPCCGAN_AblationM2_M8.py",
     "evaluate_ablation_unified.py",
 ]
@@ -50,13 +48,9 @@ def test_inverse_log_scale_clip_only_affects_large_amplitudes():
 
 
 # (d) golden tests against legacy/
-@pytest.mark.parametrize("source", LEGACY_SOURCES + ["diffComplexField_ROI256_D1_D4.py"])
+@pytest.mark.parametrize("source", LEGACY_SOURCES + ["diffComplexD.py", "evaluate_diffusion_D.py"])
 def test_mirror_artifact_matches_legacy(source):
-    names = ["mirrorArtifact"]
-    if source == "diffComplexField_ROI256_D1_D4.py":
-        # the diffusion script imports it from complex_field_utils
-        source = "complex_field_utils.py"
-    legacy = load_legacy(source, names)
+    legacy = load_legacy(source, ["mirrorArtifact"])
     for shape in [(64, 16, 3), (32, 32)]:
         x = random_complex(shape, seed=2)
         np.testing.assert_array_equal(aliases.mirrorArtifact(x), legacy.mirrorArtifact(x))
@@ -87,27 +81,6 @@ def test_inverse_log_scale_without_clip_matches_pccgan_legacy(source):
     )
 
 
-def test_inverse_log_scale_with_clip_matches_complex_field_utils():
-    legacy = load_legacy("complex_field_utils.py", ["inverseLogScale"])
-    rng = np.random.default_rng(5)
-    slices = rng.uniform(0, 1, (2, 16, 16, 2))
-    smax = rng.uniform(30, 40, (2, 1, 1))
-    smin = rng.uniform(0, 1, (2, 1, 1))
-    new = aliases.inverseLogScaleClipped(slices, smax, smin)
-    np.testing.assert_array_equal(new, legacy.inverseLogScale(slices, smax, smin))
-    # and the clip is actually active for these limits
-    assert not np.array_equal(new, aliases.inverseLogScale(slices, smax, smin))
-
-
-def test_extract_center_roi_matches_legacy():
-    legacy = load_legacy("diffComplexField_ROI256_D1_D4.py", ["extract_center_roi"])
-    x = random_complex((100, 90), seed=6)
-    for roi in [32, 64, 90]:
-        np.testing.assert_array_equal(extract_center_roi(x, roi), legacy.extract_center_roi(x, roi))
-    with pytest.raises(ValueError):
-        extract_center_roi(x, 128)
-
-
 def test_select_bscan_indices_matches_legacy_evaluation():
     legacy = load_legacy("evaluate_ablation_unified.py", ["select_bscan_indices", "N_BSCANS_PER_VOLUME"])
     for n in [1, 10, 40, 41, 100, 512, 1000]:
@@ -115,7 +88,7 @@ def test_select_bscan_indices_matches_legacy_evaluation():
 
 
 @pytest.mark.parametrize("n_y", [10, 40, 41, 100, 512])
-def test_select_bscan_indices_matches_legacy_diffusion_rule(n_y):
+def test_select_bscan_indices_matches_linspace_rule(n_y):
     n = 40
     if n_y > n:
         expected = np.linspace(0, n_y - 1, n).astype(int)

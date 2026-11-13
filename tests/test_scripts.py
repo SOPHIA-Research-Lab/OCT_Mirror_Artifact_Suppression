@@ -26,12 +26,6 @@ PCCGAN_TABLE = {
     "m7": ("M7_PhaseWeight_High", 150.0, "geo", False, 0.0),
     "m8": ("M8_PhaseGradientConstraint", 20.0, "geo", True, 20.0),
 }
-DIFFUSION_TABLE = {
-    "d1": (1, "D1_ROI256_NoPhase", False, 0.0, 8, 2e-5),
-    "d2": (2, "D2_ROI256_PhaseLoss", True, 20.0, 8, 2e-5),
-    "d3": (3, "D3_ROI256_PhaseLoss_LRScaled", True, 20.0, 16, 4e-5),
-    "d4": (4, "D4_ROI256_PhaseLoss_LRHigh", True, 20.0, 16, 8e-5),
-}
 FILES = ["Human_fingertip_skin.npy", "Human_nail_plate.npy", "Chicken_thigh_tissue.npy", "fovea.npy",
          "perifovea.npy", "macula.npy", "optic_nerve.npy"]
 
@@ -64,26 +58,12 @@ def test_pccgan_configs_match_paper_table(key):
     assert tr["checkpoint_every"] == 5 and tr["image_log_every"] == 25
 
 
-@pytest.mark.parametrize("key", sorted(DIFFUSION_TABLE))
-def test_diffusion_configs_match_paper_table(key):
-    cfg = yaml.safe_load((ROOT / "configs" / "diffusion" / f"{key}.yaml").read_text())
-    eid, name, upl, lam, bs, lr = DIFFUSION_TABLE[key]
-    tr, data = cfg["training"], cfg["data"]
-    assert (cfg["experiment_id"], cfg["name"], cfg["seed"]) == (eid, name, 0)
-    assert (tr["use_phase_loss"], tr["lambda_phase_diff"], tr["batch_size"], tr["lr"]) == (upl, lam, bs, lr)
-    assert tr["epochs"] == 80 and tr["num_time_steps"] == 1000 and tr["ema_decay"] == 0.9999
-    assert tr["beta_start"] == 1e-4 and tr["beta_end"] == 0.02
-    assert data == {"folders": ["noPhase", "phase", "synthetic"], "roi_size": 256,
-                    "roi_mode": "center", "n_bscans_per_volume": 40}
-    _load_script("train_diffusion").load_config(str(ROOT / "configs" / "diffusion" / f"{key}.yaml"))
-
-
 def test_evaluation_config_names_match_yaml():
     ev = _load_script("evaluate_pccgan")
     assert ev.CONFIG_NAMES == [PCCGAN_TABLE[k][0] for k in sorted(PCCGAN_TABLE)]
 
 
-@pytest.mark.parametrize("script", ["train_pccgan.py", "train_diffusion.py", "evaluate_pccgan.py"])
+@pytest.mark.parametrize("script", ["train_pccgan.py", "evaluate_pccgan.py"])
 def test_scripts_help(script):
     assert _run(script, "--help").returncode == 0
 
@@ -108,29 +88,6 @@ def test_train_pccgan_script_smoke(tmp_path):
     assert (run / "weight" / "G_best.pth").exists() and (run / "metrics_epoch.csv").exists()
     summary = json.loads((tmp_path / "runs" / "ablation_summary.json").read_text())
     assert summary[0]["name"] == "M3_PCCGAN_Reference" and summary[0]["best_epoch"] == 1
-
-
-def test_train_diffusion_script_smoke_and_overwrite_guard(tmp_path):
-    cfg = yaml.safe_load((ROOT / "configs" / "diffusion" / "d2.yaml").read_text())
-    cfg["training"].update(epochs=1, batch_size=2)
-    cfg["data"].update(roi_size=32, n_bscans_per_volume=2)
-    (tmp_path / "cfg.yaml").write_text(yaml.safe_dump(cfg))
-    for folder in ["noPhase", "phase", "synthetic"]:
-        _write_volumes(tmp_path / "data" / folder, ["a.npy"], (40, 40, 3))
-    args = ["--config", str(tmp_path / "cfg.yaml"), "--data-root", str(tmp_path / "data"),
-            "--out-dir", str(tmp_path / "runs"), "--device", "cpu", "--num-workers", "0"]
-    res = _run("train_diffusion.py", *args)
-    assert res.returncode == 0, res.stderr
-    run = tmp_path / "runs" / "D2_ROI256_PhaseLoss"
-    assert json.loads((run / "run_metadata.json").read_text())["status"] == "ok"
-    assert json.loads((run / "config.json").read_text())["batch_size"] == 2
-    ckpt = torch.load(run / "checkpoint.pth", weights_only=False)
-    assert set(ckpt) == {"weights", "optimizer", "ema"}
-    assert len(pd.read_csv(run / "training_metrics.csv")) == 1
-
-    res = _run("train_diffusion.py", *args)
-    assert res.returncode != 0 and "Refusing to overwrite" in res.stderr
-    assert _run("train_diffusion.py", *args, "--allow-overwrite").returncode == 0
 
 
 LEGACY_EVAL_NAMES = [

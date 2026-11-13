@@ -1,7 +1,7 @@
 """Preprocessing of complex OCT tomograms.
 
 Mirror-artifact simulation, per-slice log-amplitude normalization and its inverse,
-central ROI extraction, tomogram loading and B-scan subsampling.
+tomogram loading and B-scan subsampling.
 
 Axis convention: tomograms are stored as (Z, X, Y) = (depth, fast-scan, slow-scan).
 A B-scan is a (Z, X) slice. Normalized slices are real arrays whose last axis holds
@@ -24,7 +24,7 @@ def mirror_artifact(array: np.ndarray) -> np.ndarray:
 
     Args:
         array: Complex array whose axis 0 is depth, e.g. a tomogram (Z, X, Y) or a
-            B-scan / ROI (Z, X).
+            B-scan (Z, X).
 
     Returns:
         Complex array of the same shape containing the complex-conjugate artifact.
@@ -86,9 +86,9 @@ def inverse_log_scale(
         smax: Per-slice maximum log10 amplitude, broadcastable to (N, H, W).
         smin: Per-slice minimum log10 amplitude, broadcastable to (N, H, W).
         max_log_amp: If not None, the de-normalized log10 amplitude is clipped to this
-            upper bound before exponentiation. The diffusion pipeline uses 30.0 (keeps
-            ``10**x`` far below float64 overflow while staying far above any physically
-            expected OCT amplitude); the PC-CGAN pipeline uses None (no clipping).
+            upper bound before exponentiation (e.g. 30.0 keeps ``10**x`` far below
+            float64 overflow while staying far above any physically expected OCT
+            amplitude). The PC-CGAN pipeline uses None (no clipping).
 
     Returns:
         Array (N, H, W, 2) with the real and imaginary parts of the reconstructed field.
@@ -104,27 +104,6 @@ def inverse_log_scale(
     slices[:, :, :, 0] = np.real(slicesAmp * np.exp(1j*slicesPhase))
     slices[:, :, :, 1] = np.imag(slicesAmp * np.exp(1j*slicesPhase))
     return slices
-
-
-def extract_center_roi(bscan_complex: np.ndarray, roi_size: int = 128) -> np.ndarray:
-    """Extract a native, centered ROI from a single B-scan (no interpolation/resize).
-
-    Args:
-        bscan_complex: Complex array with shape (Z, X), e.g. (512, 512).
-        roi_size: Side of the square ROI to extract.
-
-    Returns:
-        Complex ROI with shape (roi_size, roi_size), a direct centered crop.
-
-    Raises:
-        ValueError: If the B-scan is smaller than the ROI.
-    """
-    z, x = bscan_complex.shape
-    if z < roi_size or x < roi_size:
-        raise ValueError(f"B-scan {bscan_complex.shape} smaller than ROI {roi_size}")
-    z0 = (z - roi_size) // 2
-    x0 = (x - roi_size) // 2
-    return bscan_complex[z0:z0+roi_size, x0:x0+roi_size]
 
 
 def load_tomogram(filepath: str, verbose: bool = True) -> np.ndarray:

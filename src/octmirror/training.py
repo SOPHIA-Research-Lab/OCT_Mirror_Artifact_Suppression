@@ -1,13 +1,11 @@
-"""Training loops for the PC-CGAN and for the conditional diffusion model."""
+"""Training loop for the PC-CGAN."""
 from __future__ import annotations
 
 import copy
 import csv
-import json
 import math
 import os
 import random
-import time
 from statistics import mean
 from typing import Dict, Optional, Tuple
 
@@ -16,12 +14,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from timm.utils import ModelEmaV3
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from octmirror.losses import hinge_d_loss, hinge_g_loss, phase_circular_loss, phase_gradient_loss
-from octmirror.models.diffusion import UNET, DDPMScheduler
 from octmirror.visualization import plot_training_curves, saving_img
 
 
@@ -409,168 +405,3 @@ def train_loop(train_dl: DataLoader,
         print(f"Error plotting curves: {ex}")
     print(f"Model Saved Successfully. Best amp_mae: {best_amp_mae:.6f} at epoch {best_epoch}")
     return G, D, best_amp_mae, best_epoch
-
-
-# ============================== Diffusion ============================== #
-
-DIFFUSION_CSV_HEADER = ['epoch', 'loss_total', 'mse_noise', 'phase_loss', 'seconds_per_epoch',
-                        'samples_per_second', 'peak_gpu_memory_gb', 'experiment_id', 'roi_size',
-                        'batch_size', 'lr']
-
-
-def check_diffusion_overwrite(savePath: str, allow_overwrite: bool = False) -> None:
-    """Refuse to reuse a directory that already holds a diffusion run.
-
-    Raises:
-        RuntimeError: If ``savePath`` contains ``checkpoint.pth`` or
-            ``training_metrics.csv`` and ``allow_overwrite`` is False.
-    """
-    existing_checkpoint = os.path.join(savePath, 'checkpoint.pth')
-    existing_metrics = os.path.join(savePath, 'training_metrics.csv')
-    if not allow_overwrite and (os.path.exists(existing_checkpoint) or os.path.exists(existing_metrics)):
-        raise RuntimeError(
-            f"savePath '{savePath}' already contains a checkpoint.pth or training_metrics.csv "
-            f"and allow_overwrite is False. Refusing to overwrite a previous experiment."
-        )
-
-
-def write_run_metadata(savePath: str, metadata: dict) -> None:
-    """Write ``run_metadata.json`` (status ``running`` / ``ok`` / ``failed``)."""
-    with open(os.path.join(savePath, 'run_metadata.json'), 'w') as f:
-        json.dump(metadata, f, indent=2)
-
-
-def write_config(savePath: str, config: dict) -> None:
-    """Write ``config.json`` with the resolved run configuration."""
-    with open(os.path.join(savePath, 'config.json'), 'w') as f:
-        json.dump(config, f, indent=2)
-
-
-def train_diffusion(train_ds: Dataset,
-                    savePath: str,
-                    device,
-                    batch_size: int = 1,
-                    num_time_steps: int = 1000,
-                    num_epochs: int = 15,
-                    seed: int = -1,
-                    ema_decay: float = 0.9999,
-                    lr: float = 2e-5,
-                    use_phase_loss: bool = False,
-                    lambda_phase_diff: float = 0.0,
-                    experiment_id: int = 0,
-                    roi_size: int = 256,
-                    num_workers: int = 2,
-                    data_parallel: bool = True) -> None:
-    """Train the conditional diffusion U-Net (noise prediction, MSE).
-
-    Adam, mixed precision (``GradScaler``, enabled on CUDA devices), optional
-    ``DataParallel`` when several GPUs are visible, and an EMA (``timm`` ``ModelEmaV3``)
-    updated after every optimizer step. If ``use_phase_loss``, the circular phase loss
-    (``'geo'`` weighting) between the predicted x0 and the clean target is added with
-    weight ``lambda_phase_diff``. Per-epoch metrics go to ``training_metrics.csv``; the
-    final ``checkpoint.pth`` holds ``{'weights', 'optimizer', 'ema'}``.
-
-    Args:
-        train_ds: Dataset of (condition, target) pairs (2, roi_size, roi_size).
-        savePath: Output directory.
-        device: Torch device.
-        seed: Seed for :func:`set_seed`; ``-1`` draws a random seed.
-        num_workers: DataLoader workers.
-        data_parallel: Wrap the model in ``nn.DataParallel`` if more than one GPU is visible.
-    """
-    set_seed(random.randint(0, 2**32-1)) if seed == -1 else set_seed(seed)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=False,
-                              num_workers=num_workers)
-
-    device = torch.device(device)
-    scheduler = DDPMScheduler(num_time_steps=num_time_steps, device=device)
-    model = UNET()
-
-    if data_parallel and device.type == 'cuda' and torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs!")
-        model = nn.DataParallel(model)
-
-    model = model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    ema = ModelEmaV3(model, decay=ema_decay)
-    # mixed precision scaler (automatic)
-    use_amp = device.type == 'cuda'
-    scaler = torch.amp.GradScaler('cuda', enabled=use_amp)
-    criterion = nn.MSELoss(reduction='mean')
-
-    metrics_path = os.path.join(savePath, 'training_metrics.csv')
-    with open(metrics_path, 'w', newline='') as f:
-        csv.writer(f).writerow(DIFFUSION_CSV_HEADER)
-
-    n_samples = len(train_ds)
-    checked_batch_shape = False
-    for i in range(num_epochs):
-        total_loss = 0
-        total_mse_noise = 0
-        total_phase_loss = 0
-        if use_amp:
-            torch.cuda.reset_peak_memory_stats()
-        epoch_start = time.time()
-        with tqdm(train_loader, desc=f"Epoch {i+1}/{num_epochs}") as pbar:
-            for condition, x in pbar:
-                if not checked_batch_shape:
-                    expected_shape = (x.shape[0], 2, roi_size, roi_size)
-                    if tuple(condition.shape) != expected_shape or tuple(x.shape) != expected_shape:
-                        raise ValueError(
-                            f"Expected input/target batches of shape {expected_shape}, "
-                            f"got condition={tuple(condition.shape)}, target={tuple(x.shape)}"
-                        )
-                    checked_batch_shape = True
-                x = x.to(device)
-                condition = condition.to(device)
-                current_batch_size = x.shape[0]
-                t = torch.randint(0, num_time_steps, (current_batch_size,))
-                e = torch.randn_like(x, requires_grad=False)
-                a = scheduler.alpha[t].view(current_batch_size, 1, 1, 1).to(x.device)
-                x0_clean = x.clone()
-                x_noisy = (torch.sqrt(a) * x) + (torch.sqrt(1 - a) * e)
-
-                # Mixed precision forward/backward to reduce memory
-                optimizer.zero_grad()
-                with torch.amp.autocast(device_type='cuda', enabled=use_amp):
-                    output = model(x_noisy, t, condition)
-                    mse_noise = criterion(output, e)
-                    if use_phase_loss:
-                        x0_pred = (x_noisy - torch.sqrt(1 - a) * output) / torch.sqrt(a)
-                        phase_loss = phase_circular_loss(x0_pred, x0_clean, weight_mode='geo')
-                        loss = mse_noise + lambda_phase_diff * phase_loss
-                    else:
-                        phase_loss = torch.zeros((), device=mse_noise.device)
-                        loss = mse_noise
-                total_loss += loss.item()
-                total_mse_noise += mse_noise.item()
-                total_phase_loss += phase_loss.item()
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                ema.update(model)
-        epoch_seconds = time.time() - epoch_start
-        samples_per_second = n_samples / epoch_seconds if epoch_seconds > 0 else 0.0
-        peak_gpu_memory_gb = (torch.cuda.max_memory_allocated() / 1024**3) if use_amp else 0.0
-        avg_loss = total_loss / len(train_loader)
-        avg_mse_noise = total_mse_noise / len(train_loader)
-        avg_phase_loss = total_phase_loss / len(train_loader)
-        print(f'Epoch {i+1} | Loss {avg_loss:.5f} '
-              f'| mse_noise {avg_mse_noise:.5f} '
-              f'| phase_loss {avg_phase_loss:.5f} '
-              f'| sec/epoch {epoch_seconds:.2f} '
-              f'| samples/sec {samples_per_second:.2f} '
-              f'| peak_gpu_mem_gb {peak_gpu_memory_gb:.2f}')
-        with open(metrics_path, 'a', newline='') as f:
-            csv.writer(f).writerow([i+1, avg_loss, avg_mse_noise, avg_phase_loss, epoch_seconds,
-                                    samples_per_second, peak_gpu_memory_gb, experiment_id, roi_size,
-                                    batch_size, lr])
-
-    checkpoint = {
-        'weights': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'ema': ema.state_dict()
-    }
-
-    torch.save(checkpoint, os.path.join(savePath, 'checkpoint.pth'))
-    print(f"Model saved to {savePath}")

@@ -52,7 +52,7 @@ def test_unsupported_weight_modes_raise():
 
 
 # golden
-@pytest.mark.parametrize("source", [GAN, "complex_field_utils.py"])
+@pytest.mark.parametrize("source", [GAN])
 @pytest.mark.parametrize("mode", ["geo", "none"])
 def test_phase_circular_loss_matches_legacy(source, mode):
     legacy = load_legacy(source, ["phase_circular_loss"])
