@@ -1,8 +1,8 @@
 """Loss functions: hinge adversarial losses and circular phase losses.
 
 Phase losses take tensors (B, 2, H, W) with channels (real, imag) and compute the phase
-as ``atan2(imag, real)`` of the channels as given (see docs/KNOWN_ISSUES.md about the
-[0, 1] representation used during training).
+as ``atan2(imag, real)`` of the channels as given (the [0, 1] representation used
+during training).
 """
 from __future__ import annotations
 

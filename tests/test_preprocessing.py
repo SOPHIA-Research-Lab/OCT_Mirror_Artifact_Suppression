@@ -34,7 +34,7 @@ def test_log_scale_round_trip(max_log_amp):
     rec = inverse_log_scale(logslices, smax, smin, max_log_amp=max_log_amp)
     rec_cx = rec[..., 0] + 1j * rec[..., 1]
     # The minimum-amplitude pixel of each slice is normalized to amplitude 0, so its phase
-    # is lost and it is reconstructed with phase 0 (see docs/KNOWN_ISSUES.md).
+    # is lost and it is reconstructed with phase 0.
     amp = np.abs(x)
     is_min = amp == amp.min(axis=(1, 2), keepdims=True)
     np.testing.assert_allclose(rec_cx[~is_min], x[~is_min], rtol=1e-5)

@@ -261,7 +261,7 @@ def train_loop(train_dl: DataLoader,
     generator when ``use_ema``), a ``ReduceLROnPlateau`` step of the generator learning
     rate on the validation amplitude MAE, and a row in ``metrics_epoch.csv``.
     ``weight/G_best.pth`` / ``weight/D_best.pth`` hold the raw (non-EMA) networks at the
-    epoch with the lowest validation amplitude MAE. See docs/KNOWN_ISSUES.md.
+    epoch with the lowest validation amplitude MAE.
 
     Returns:
         ``(G, D, best_amp_mae, best_epoch)``.
@@ -330,7 +330,7 @@ def train_loop(train_dl: DataLoader,
         train_amps.append(comps['amp'])
         train_phase_grads.append(comps['phase_grad'])
 
-        # Update EMA (once per epoch, see docs/KNOWN_ISSUES.md)
+        # Update EMA (once per epoch)
         if use_ema and G_ema is not None:
             update_ema(G_ema, G, decay=ema_decay)
 

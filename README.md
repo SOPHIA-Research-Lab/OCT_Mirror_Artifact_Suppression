@@ -150,9 +150,9 @@ python scripts/evaluate_pccgan.py \
 - The diffusion model is a standard Euclidean Gaussian formulation. In the paper it reaches the highest structural similarity but loses phase coherence.
 - The conclusions apply to the evaluated methods, datasets and objectives. They do not constitute validation for Doppler OCT, OCT angiography or elastography.
 
-## Known issues and reproducibility notes
+## Reproducibility notes
 
-See `docs/KNOWN_ISSUES.md` and `docs/REPRODUCIBILITY.md` for implementation details that affect reproduction, including the exponential moving average used during PC-CGAN validation.
+See `docs/REPRODUCIBILITY.md` for the seeds, data splits and evaluation protocol used by the code.
 
 ## Data availability
 

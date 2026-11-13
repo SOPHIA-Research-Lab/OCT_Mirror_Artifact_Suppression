@@ -1,6 +1,6 @@
 # Reproducibility notes
 
-This page lists the seeds, data splits and evaluation protocol used by the code, and what can and cannot be reproduced exactly. See `docs/KNOWN_ISSUES.md` for the issues of the original implementation.
+This page lists the seeds, data splits and evaluation protocol used by the code, and what can and cannot be reproduced exactly.
 
 ## Environment
 
@@ -13,7 +13,7 @@ This page lists the seeds, data splits and evaluation protocol used by the code,
 | Where | Value | What it controls |
 |---|---|---|
 | PC-CGAN `seed` (YAML) | 0 | Python, NumPy and PyTorch RNGs, set right before building the generator and discriminator: network initialization, DataLoader shuffling, dropout. Same as the original script, which reseeded before each configuration. |
-| PC-CGAN `split_seed` (YAML) | 0 | Permutation of the 90/10 train/validation split. The original script shuffled before seeding, so the original split is not reproducible; see `KNOWN_ISSUES.md` 1.3. `null` restores the unseeded behaviour. |
+| PC-CGAN `split_seed` (YAML) | 0 | Permutation of the 90/10 train/validation split. The original script shuffled before seeding, so the original split is not reproducible. `null` restores the unseeded behaviour. |
 | Diffusion `seed` (YAML) | 0 | Set at the start of `train_diffusion`: network initialization, DataLoader shuffling, time steps and noise. |
 | Diffusion sampling `--seed` (`infer.py`) | 0 by default | `torch.manual_seed` before the initial noise of every B-scan (the same seed is reused for each B-scan). |
 | Bootstrap confidence intervals | 2000 resamples, seed 42 | `octmirror.stats.bootstrap_ci`. |

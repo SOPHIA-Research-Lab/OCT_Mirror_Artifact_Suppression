@@ -55,7 +55,7 @@ def test_load_diffusion_strips_module_prefix(tmp_path, data_parallel):
 
 
 def test_legacy_inference_cannot_load_data_parallel_ema(tmp_path, monkeypatch):
-    """Documents KNOWN_ISSUES: the original sampler fails on a DataParallel EMA state."""
+    """The original sampler fails on a DataParallel EMA state."""
     legacy = load_legacy(DIFF, ["inference", "UNET", "UnetLayer", "ResBlock", "Attention",
                                 "SinusoidalEmbeddings", "DDPM_Scheduler", "display_reverse"])
     monkeypatch.setattr(nn.Module, "cuda", lambda self, *a, **k: self)
