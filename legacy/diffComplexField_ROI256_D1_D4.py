@@ -8,7 +8,6 @@ import math
 import time
 import csv
 import datetime 
-from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 from timm.utils import ModelEmaV3 #pip install timm
 from tqdm import tqdm #pip install tqdm
@@ -20,15 +19,13 @@ import numpy as np
 import os
 import sys
 import json
-from numpy.fft import fft, ifft
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 from torch.utils.data import DataLoader, Dataset
-from numpy.fft import fftshift, ifftshift, fft, ifft
 
 # logScale/inverseLogScale/mirrorArtifact/phase_circular_loss are reused as-is from the
 # PC-CGAN complex-field script (M3 reference, lambda_phase=20.0) instead of reimplementing them.
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from complex_field_utils import logScale, inverseLogScale, mirrorArtifact, phase_circular_loss
+from complex_field_utils import logScale, mirrorArtifact, phase_circular_loss
 
 # ---------------------------------------------------------------------------
 # Exploratory ROI experiment (D1-D4): native 256x256 ROIs, 2 channels (real, imag),

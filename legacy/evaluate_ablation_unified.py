@@ -11,7 +11,6 @@ functions are copied verbatim from torchPix2Pix_AblationM2_M8.py (that script is
 structured as an importable module, running top-level training code on import). 
 """
 import os
-import json
 import traceback
 from glob import glob
 

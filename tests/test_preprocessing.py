@@ -10,7 +10,6 @@ from octmirror.preprocessing import (
     inverse_log_scale,
     load_tomogram,
     log_scale,
-    mirror_artifact,
     select_bscan_indices,
 )
 
