@@ -1,6 +1,6 @@
 # Reproducibility notes
 
-This page lists the seeds, data splits and evaluation protocol used by the code, and what can and cannot be reproduced exactly.
+This page lists the seeds, data splits and evaluation protocol used by the code.
 
 ## Environment
 
@@ -36,7 +36,7 @@ This page lists the seeds, data splits and evaluation protocol used by the code,
 - Training data: every `.npy` file in `noPhase/`, `phase/` and `synthetic/` under `--data-root`.
 - Up to 40 evenly spaced B-scans per volume (`np.linspace`; all B-scans if a volume has 40 or fewer).
 - The central 256 x 256 ROI is cropped at native resolution (no interpolation) and the artifact is simulated on the ROI.
-- There is no validation split; the final checkpoint (EMA weights) is used.
+
 
 ## PC-CGAN evaluation protocol (`scripts/evaluate_pccgan.py`)
 
@@ -69,4 +69,3 @@ Run them with `pytest`.
 
 - The PC-CGAN train/validation partition of the original runs (unseeded shuffle).
 - Bitwise GPU results (non-deterministic kernels, AMP, PyTorch version).
-- Diffusion samples of the original runs: the original sampler was not seeded.
