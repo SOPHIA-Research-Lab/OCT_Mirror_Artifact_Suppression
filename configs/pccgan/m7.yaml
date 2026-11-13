@@ -7,15 +7,13 @@ val_fraction: 0.1
 data:
   folders: [phase]
   files:
-    - OpticNerveAOld.npy
-    - OpticNerveBOld.npy
-    - unpairCadaverhearth.npy
-    - ChickenBreastA.npy
-    - ChickenBreastB.npy
-    - NailA.npy
-    - NailB.npy
-    - S.Eye2A.npy
-    - S.Eye2B.npy
+    - Human_fingertip_skin.npy
+    - Human_nail_plate.npy
+    - Chicken_thigh_tissue.npy
+    - fovea.npy
+    - perifovea.npy
+    - macula.npy
+    - optic_nerve.npy
 
 training:
   epochs: 300

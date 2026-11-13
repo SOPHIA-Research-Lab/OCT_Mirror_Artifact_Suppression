@@ -264,8 +264,8 @@ def phase_gradient_ssim(pred_cx, gt_cx, percentile=50):
 
 # ===================== CONFIGURATION ===================== #
 
-ABLATION_ROOT = '/home/rsg-dapulgaris/Models/AblationPCCGAN'
-VALIDATION_DATA_DIR = '/home/rsg-dapulgaris/Data/validationCxPaper'
+ABLATION_ROOT = 'put/your/output/path/here'
+VALIDATION_DATA_DIR = 'put/your/validation/data/path/here'
 EVALUATION_DIR = os.path.join(ABLATION_ROOT, 'evaluation')
 PLOTS_DIR = os.path.join(EVALUATION_DIR, 'plots')
 TRAINING_CURVES_PLOTS_DIR = os.path.join(PLOTS_DIR, 'training_curves_unified')

@@ -226,3 +226,6 @@ runs/
 outputs/
 *.npy
 !data/sample_volumes/*.npy
+
+# macOS
+.DS_Store

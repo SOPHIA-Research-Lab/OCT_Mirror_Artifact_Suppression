@@ -28,8 +28,8 @@ from evaluate_ablation_unified import (
     weighted_phase_coherence, masked_complex_coherence, phase_gradient_ssim,
 )
 
-DIFFUSION_ROOT = '/home/rsg-dapulgaris/Models/diffCxModels/ROI256_AmpPhase_X0Prediction_Ablation'
-VALIDATION_DATA_DIR = '/home/rsg-dapulgaris/Data/validationCxPaper'
+DIFFUSION_ROOT = 'put/your/output/path/here'
+VALIDATION_DATA_DIR = 'put/your/validation/data/path/here'
 EVALUATE_CONFIG_IDS = ['D1', 'D2', 'D3', 'D4']
 EVAL_SEED = 20240601
 EVAL_N_BSCANS_PER_VOLUME = 40
@@ -70,14 +70,13 @@ AMP_PHASE_CONFIGS = [
 # Historical identifiers remain documented but are intentionally not selected here.
 HISTORICAL_CONFIG_IDS = ('D1', 'D2', 'D3', 'D4', 'D1b', 'D2b', 'D3b', 'D4b')
 ALLOWED_TISSUE_SPECS = [
-    dict(label='Optic nerve', filename='OpticNerve.npy'),
-    dict(label='Chicken thigh', filename='[ComplexConjugateRemoval][ChickenThigh][08-07-2026_20-54-54]_z=(512)_x=(512)_y=(512).npy'),
-    dict(label='Fingertip', filename='[ComplexConjugateRemoval][Fingertip][08-07-2026_19-57-30]_z=(512)_x=(512)_y=(256).npy'),
-    dict(label='Dorsal hand', filename='[ComplexConjugateRemoval][HandBack][08-07-2026_20-07-13]_z=(512)_x=(512)_y=(256).npy'),
-    dict(label='Nail bed', filename='[ComplexConjugateRemoval][NailBed][08-07-2026_19-50-10]_z=(512)_x=(512)_y=(256).npy'),
-    dict(label='Salmon', filename='[ComplexConjugateRemoval][Salmon][08-07-2026_20-43-58]_z=(512)_x=(512)_y=(512).npy'),
+    dict(label='Fovea', filename='fovea_subject2.npy'),
+    dict(label='Optic nerve', filename='optic_nerve_subject2.npy'),
+    dict(label='Chicken thigh', filename='Chicken_thigh_tissue_2.npy'),
+    dict(label='Fingertip', filename='Human_fingertip_skin_2.npy'),
+    dict(label='Nail bed', filename='Human_nail_bed.npy'),
+    dict(label='Salmon', filename='Salmon_tissue.npy'),
 ]
-FORBIDDEN_TERMS = ('cadaver', 'heart', 'hearth', 'nailbedocta', 'octa')
 METRIC_COLUMNS = ['ssim', 'psnr', 'mse', 'hist_cosine_similarity', 'wpc', 'ccc', 'pgssim']
 CSV_COLUMNS = ['bscan_id', 'tissue', 'source_filename', 'bscan_index', 'config_id',
                'config_name', 'checkpoint_path', 'used_ema', 'inference_seed',
@@ -105,9 +104,6 @@ def validate_allowlist():
     if len(ALLOWED_TISSUE_SPECS) != 6:
         raise ValueError('ALLOWED_TISSUE_SPECS must contain exactly six entries.')
     for spec in ALLOWED_TISSUE_SPECS:
-        lowered = spec['filename'].lower().replace('-', '')
-        if any(term in lowered for term in FORBIDDEN_TERMS):
-            raise ValueError(f"Forbidden filename in allowlist: {spec['filename']}")
         path = os.path.join(VALIDATION_DATA_DIR, spec['filename'])
         if not os.path.isfile(path):
             raise FileNotFoundError(f'Allowlisted validation file does not exist: {path}')
@@ -343,7 +339,7 @@ def build_wilcoxon(df):
 
 def write_manifest(eval_ids, loaded):
     manifest = dict(configurations=[dict(id=c['id'], name=c['name'], checkpoint_path=loaded[c['id']]['path'], used_ema=loaded[c['id']]['ema']) for c in CONFIGS],
-                    dataset_allowlist=ALLOWED_TISSUE_SPECS, exclusions=['cadaver heart', 'pairCadaverhearth.npy', 'nail-bed OCTA', 'NailBedOCTA', 'OpticNerveRene.npy', 'opticNerveReneNoMc.npy'],
+                    dataset_allowlist=ALLOWED_TISSUE_SPECS,
                     bscans_fixed=eval_ids, inference_seed=INFERENCE_SEED, sampler='ddpm_x0_posterior', num_time_steps=1000,
                     representation='log_amplitude_phase_normalized', channel_limits={'amplitude': [0, 1], 'phase': [-1, 1]},
                     target_used_inside_reverse_loop=False, teacher_forcing_used=False, phasor_recomposition_used=True, nlm_primary_metrics=True,

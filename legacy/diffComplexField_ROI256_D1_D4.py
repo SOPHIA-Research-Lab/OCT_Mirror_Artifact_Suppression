@@ -43,7 +43,7 @@ N_BSCANS_PER_VOLUME = 40  # subsample per volume for a fast exploratory run
 NUM_EPOCHS = 80
 SEED = 0
 ALLOW_OVERWRITE = False
-ROI_ROOT = '/home/rsg-dapulgaris/Models/diffCxModels/ROI256_Ablation'
+ROI_ROOT = 'put/your/output/path/here'
 
 
 def extract_center_roi(bscan_complex, roi_size=128):
@@ -689,18 +689,16 @@ if __name__ == '__main__':
             print(f"GPU diagnostic FAILED: {e}")
             raise
 
-        dataPath = '/home/rsg-dapulgaris/Data'
+        dataPath = 'put/your/data/path/here'
         folders = ['noPhase', 'phase', 'synthetic']
         filestrain = [
-                'OpticNerveAOld.npy',
-                'OpticNerveBOld.npy',
-                'unpairCadaverhearth.npy',
-                'ChickenBreastA.npy',
-                'ChickenBreastB.npy',
-                'NailA.npy',
-                'NailB.npy',
-                'S.Eye2A.npy',
-                'S.Eye2B.npy',
+                'Human_fingertip_skin.npy',
+                'Human_nail_plate.npy',
+                'Chicken_thigh_tissue.npy',
+                'fovea.npy',
+                'perifovea.npy',
+                'macula.npy',
+                'optic_nerve.npy',
                 ]
 
         n_volumes = 0

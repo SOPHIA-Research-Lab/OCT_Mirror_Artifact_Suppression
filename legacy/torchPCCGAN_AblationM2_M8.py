@@ -1,7 +1,7 @@
 #%%
 print("Starting pix2pix robust training script...")
 # import sys
-# sys.path.append('/Users/diegoalejandropulgarinsuarez/Documents/GitHub/DLOCT/CxDLOCT')
+# sys.path.append('put/your/repo/path/here')
 import numpy as np 
 import matplotlib
 matplotlib.use('Agg')
@@ -973,18 +973,16 @@ def train_loop(train_dl,
         return G, D, best_amp_mae, best_epoch
 
 print('starting data preparation...')
-dataPath = '/home/rsg-dapulgaris/Data'
+dataPath = 'put/your/data/path/here'
 folders = ['phase']
 filestrain = [
-            'OpticNerveAOld.npy',
-            'OpticNerveBOld.npy',
-            'unpairCadaverhearth.npy',
-            'ChickenBreastA.npy',
-            'ChickenBreastB.npy',
-            'NailA.npy',
-            'NailB.npy',
-            'S.Eye2A.npy',
-            'S.Eye2B.npy'
+            'Human_fingertip_skin.npy',
+            'Human_nail_plate.npy',
+            'Chicken_thigh_tissue.npy',
+            'fovea.npy',
+            'perifovea.npy',
+            'macula.npy',
+            'optic_nerve.npy'
             ]
 tomList = []
 tomccList = []
@@ -1086,7 +1084,7 @@ CONFIGS = [
     dict(name="M8_PhaseGradientConstraint", lambda_phase=20.0,  phase_weight_mode="geo",  use_phase_grad=True,  lambda_phase_grad=20.0),
 ]
 
-ablation_root = '/home/rsg-dapulgaris/Models/AblationPCCGAN'
+ablation_root = 'put/your/output/path/here'
 os.makedirs(ablation_root, exist_ok=True)
 ablation_summary_path = os.path.join(ablation_root, 'ablation_summary.json')
 ablation_summary = []
@@ -1114,7 +1112,7 @@ for cfg in CONFIGS:
         G = GeneratorTf(in_ch=in_channels, out_ch=out_channels)
         D = DiscriminatorTf(in_ch=in_channels)
 
-        savePath = os.path.join('/home/rsg-dapulgaris/Models/AblationPCCGAN', cfg['name'])
+        savePath = os.path.join('put/your/output/path/here', cfg['name'])
         os.makedirs(savePath, exist_ok=True)
 
         trained_G, trained_D, best_amp_mae, best_epoch = train_loop(
@@ -1150,7 +1148,7 @@ for cfg in CONFIGS:
             'name': cfg['name'],
             'best_amp_mae': None,
             'best_epoch': None,
-            'best_weight_path': os.path.join('/home/rsg-dapulgaris/Models/AblationPCCGAN', cfg['name'], 'weight', 'G_best.pth'),
+            'best_weight_path': os.path.join('put/your/output/path/here', cfg['name'], 'weight', 'G_best.pth'),
             'error': str(ex),
             'traceback': traceback.format_exc(limit=10)
         })

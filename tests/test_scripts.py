@@ -32,8 +32,8 @@ DIFFUSION_TABLE = {
     "d3": (3, "D3_ROI256_PhaseLoss_LRScaled", True, 20.0, 16, 4e-5),
     "d4": (4, "D4_ROI256_PhaseLoss_LRHigh", True, 20.0, 16, 8e-5),
 }
-FILES = ["OpticNerveAOld.npy", "OpticNerveBOld.npy", "unpairCadaverhearth.npy", "ChickenBreastA.npy",
-         "ChickenBreastB.npy", "NailA.npy", "NailB.npy", "S.Eye2A.npy", "S.Eye2B.npy"]
+FILES = ["Human_fingertip_skin.npy", "Human_nail_plate.npy", "Chicken_thigh_tissue.npy", "fovea.npy",
+         "perifovea.npy", "macula.npy", "optic_nerve.npy"]
 
 
 def _load_script(name):
@@ -100,7 +100,7 @@ def test_train_pccgan_script_smoke(tmp_path):
     cfg = yaml.safe_load((ROOT / "configs" / "pccgan" / "m3.yaml").read_text())
     cfg["training"].update(epochs=1, batch_size=2)
     (tmp_path / "cfg.yaml").write_text(yaml.safe_dump(cfg))
-    _write_volumes(tmp_path / "data" / "phase", ["NailA.npy", "other.npy"], (128, 128, 10))
+    _write_volumes(tmp_path / "data" / "phase", ["Human_nail_plate.npy", "other.npy"], (128, 128, 10))
     res = _run("train_pccgan.py", "--config", str(tmp_path / "cfg.yaml"), "--data-root",
                str(tmp_path / "data"), "--out-dir", str(tmp_path / "runs"), "--device", "cpu")
     assert res.returncode == 0, res.stderr
